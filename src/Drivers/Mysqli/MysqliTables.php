@@ -2,49 +2,45 @@
 
 namespace Baza\Driver\Mysqli;
 
-class MysqliTables implements \TablesInterface{
+class MysqliTables implements \Baza\Interfaces\TablesInterface{
   public $baza;
-  public $tables = array();
-  public $tables_changed = true;
   
   function __construct(\Baza $baza){
     $this->baza = $baza;
   }
   
-  function getTables(){
-    if ($this->tables_changed){
-      $f_gt = $this->baza->query("SHOW TABLE STATUS");
-      while($d_gt = $f_gt->fetch()){
-        if (!array_key_exists($d_gt["Name"], $this->tables)){
-          $this->tables[$d_gt["Name"]] = new \Table($this->baza, array(
-            "name" => $d_gt["Name"],
-            "engine" => $d_gt["Engine"],
-            "collation" => $d_gt["Collation"],
-            "rows" => $d_gt["Rows"]
-          ));
-        }
-      }
-      
-      $this->tables_changed = false;
-    }
-    
-    return $this->tables;
+  private function spawnTableFromData($data){
+    return new \Baza\Table($this->baza, array(
+      "name" => $data["Name"],
+      "engine" => $data["Engine"],
+      "collation" => $data["Collation"],
+      "rows" => $data["Rows"]
+    ));
   }
   
-  function renameTable(Table $table, $newname){
-    $this->baza->query("ALTER TABLE " . $this->baza->conn->sep_table . $table->get("name") . $this->baza->conn->sep_table . " RENAME TO " . $this->baza->conn->sep_table . $newname . $this->baza->conn->sep_table);
+  function getTables(){
+    $tables = array();
+    $f_gt = $this->baza->query("SHOW TABLE STATUS");
+    while($d_gt = $f_gt->fetch()){
+      $tables[$d_gt["Name"]] = $this->spawnTableFromData($d_gt);
+    }
     
-    unset($this->tables[$table->get("name")]);
-    $table->data["name"] = $newname;
-    $this->tables[$newname] = $table;
+    return $tables;
+  }
+  
+  function getTable($name){
+    $data = $this->baza->query("SHOW TABLE STATUS WHERE `Name` = '" . $this->baza->sql($name) . "'")->fetch();
+    if (!$data) throw new \Baza\Errors\TableNotFound("No such table: '" . $name . "'.");
+    return $this->spawnTableFromData($data);
+  }
+  
+  function renameTable(\Baza\Table $table, $newname){
+    $this->baza->query("ALTER TABLE " . $this->baza->conn->sep_table . $table->getName() . $this->baza->conn->sep_table . " RENAME TO " . $this->baza->conn->sep_table . $newname . $this->baza->conn->sep_table);
   }
   
   function createTable($tablename, $cols, $args = null){
     $sql = "CREATE";
-    
-    if ($args["temp"]){
-      $sql .= " TEMPORARY";
-    }
+    if ($args["temp"]) $sql .= " TEMPORARY";
     
     $sql .= " TABLE " . $this->baza->conn->sep_table . $tablename . $this->baza->conn->sep_table . " (";
     $prim_keys = array();
@@ -61,24 +57,20 @@ class MysqliTables implements \TablesInterface{
     }
     $sql .= ")";
     
-    if ($args["returnsql"]){
-      return $sql;
-    }
+    if ($args["return_sql"]) return $sql;
     
     $this->baza->query($sql);
-    $this->tables_changed = true;
   }
   
-  function dropTable(Table $table){
-    $this->baza->query("DROP TABLE " . $this->baza->conn->sep_table . $table->get("name") . $this->baza->conn->sep_table);
-    unset($this->tables[$table->get("name")]);
+  function dropTable(\Baza\Table $table){
+    $this->baza->query("DROP TABLE " . $this->baza->conn->sep_table . $table->getName() . $this->baza->conn->sep_table);
   }
   
-  function truncateTable(Table $table){
-    $this->baza->query("TRUNCATE " . $this->baza->conn->sep_table . $table->get("name") . $this->baza->conn->sep_table);
+  function truncateTable(\Baza\Table $table){
+    $this->baza->query("TRUNCATE " . $this->baza->conn->sep_table . $table->getName() . $this->baza->conn->sep_table);
   }
   
-  function optimizeTable(Table $table){
-    $this->baza->query("OPTIMIZE TABLE " . $this->baza->conn->sep_table . $table->get("name") . $this->baza->conn->sep_table); //vacuum the entire database.
+  function optimizeTable(\Baza\Table $table){
+    $this->baza->query("OPTIMIZE TABLE " . $this->baza->conn->sep_table . $table->getName() . $this->baza->conn->sep_table); //vacuum the entire database.
   }
 }

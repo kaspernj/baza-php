@@ -39,7 +39,7 @@ class Mssql{
       throw new Exception("Query error: " . mssql_get_last_message());
     }
     
-    return new Result($this->baza, $this, $res);
+    return new \Baza\Result($this->baza, $this, $res);
   }
   
   function fetch($res){

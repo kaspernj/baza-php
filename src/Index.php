@@ -1,21 +1,29 @@
 <?php
 
+namespace Baza;
+
 class Index{
-  public $baza;
-  public $table;
-  public $data;
+  private $baza;
+  private $tableName;
+  private $data;
   
-  function __construct($table, $data){
-    $this->baza = $table->baza;
-    $this->table = $table;
+  function __construct($baza, $tableName, $data){
+    if (!array_key_exists("column_names", $data))
+      throw new \Exception("'column_names' was not given.");
+    
+    $this->baza = $baza;
+    $this->tableName = $tableName;
     $this->data = $data;
+  }
+  
+  function getTable(){
+    return $this->baza->tables()->getTable($this->tableName);
   }
   
   /** Returns a key from the row. */
   function get($key){
-    if (!array_key_exists($key, $this->data)){
-      throw new Exception("The key does not exist: \"" . $key . "\".");
-    }
+    if (!array_key_exists($key, $this->data))
+      throw new \Exception("The key does not exist: \"" . $key . "\".");
     
     return $this->data[$key];
   }
@@ -25,9 +33,11 @@ class Index{
   }
   
   function getColumns(){
+    $table = $this->getTable();
+    
     $columns = array();
     foreach($this->data["column_names"] as $column_name){
-      $columns[] = $this->table->getColumn($column_name);
+      $columns[] = $table->getColumn($column_name);
     }
     
     return $columns;
@@ -38,6 +48,9 @@ class Index{
   }
   
   function getUnique(){
+    if (!array_key_exists("unique", $this->data))
+      throw new \Exception("Unique was not given by driver.");
+    
     return $this->data["unique"];
   }
   
@@ -48,7 +61,7 @@ class Index{
         $text .= ", ";
       }
       
-      $text .= $column->get("name");
+      $text .= $column->getName();
     }
     
     return $text;

@@ -1,5 +1,7 @@
 <?php
 
+namespace Baza;
+
 class Result{
   public $baza;
   public $driver;

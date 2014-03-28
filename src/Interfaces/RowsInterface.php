@@ -1,5 +1,7 @@
 <?php
-  interface RowsInterface{
-    
-  }
 
+namespace Baza\Interfaces;
+
+interface RowsInterface{
+  
+}

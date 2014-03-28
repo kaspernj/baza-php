@@ -1,13 +1,18 @@
 <?php
 
+namespace Baza;
+
 class Column{
   private $baza;
-  private $table;
+  private $tableName;
   private $data;
   
-  function __construct(Table $table, $data){
-    $this->baza = $table->baza;
-    $this->table = $table;
+  function __construct(\Baza $baza, $tableName, $data){
+    if (!is_string($tableName))
+      throw new \Exception("Table name wasn't a string: " . gettype($tableName));
+    
+    $this->baza = $baza;
+    $this->tableName = $tableName;
     $this->data = $data;
   }
   
@@ -16,7 +21,15 @@ class Column{
   }
   
   function getTable(){
-    return $this->table;
+    return $this->baza->tables()->getTable($this->tableName);
+  }
+  
+  function getTableName(){
+    return $this->tableName;
+  }
+  
+  function getData(){
+    return $this->data;
   }
   
   function setData($arr){
@@ -28,18 +41,18 @@ class Column{
       }
     }
     
-    if (!$changed){
-      return null; //abort if the data is the same.
-    }
+    if (!$changed) return;
     
     $this->baza->columns()->editColumn($this, $arr);
-    foreach($arr AS $key => $value){
-      $this->data[$key] = $value;
-    }
+    $this->reload();
   }
   
   function getPrimaryKey(){
     return $this->data["primarykey"];
+  }
+  
+  function getAutoIncrement(){
+    return $this->data["autoincr"];
   }
   
   function getName(){
@@ -55,6 +68,9 @@ class Column{
   }
   
   function getUnsigned(){
+    if (!array_key_exists("unsigned", $this->data))
+      throw new \Exception("Unsigned was not given by driver.");
+    
     return $this->data["unsigned"];
   }
   
@@ -77,5 +93,23 @@ class Column{
     }
     
     return $this->data[$key];
+  }
+  
+  function rename($newname){
+    $data = $this->data;
+    $data["name"] = $newname;
+    
+    $this->getBaza()->columns()->editColumn($this, $data);
+    $this->data["name"] = $newname;
+    $this->reload();
+  }
+  
+  function reload(){
+    $column = $this->getTable()->getColumn($this->getName());
+    $this->data = $column->getData();
+  }
+  
+  function drop(){
+    $this->baza->columns()->removeColumn($this->getTable(), $this);
   }
 }

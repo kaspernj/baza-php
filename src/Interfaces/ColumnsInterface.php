@@ -1,9 +1,11 @@
 <?php
 
+namespace Baza\Interfaces;
+
 interface ColumnsInterface{
   function getColumnSQL($column);
-  function getColumns(Table $table);
-  function removeColumn(Table $table, Column $column);
-  function addColumns(Table $table, $columns);
-  function editColumn(Column $col, $newdata);
+  function getColumns(\Baza\Table $table);
+  function removeColumn(\Baza\Table $table, \Baza\Column $column);
+  function addColumns(\Baza\Table $table, $columns);
+  function editColumn(\Baza\Column $col, $newdata);
 }

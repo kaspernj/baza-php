@@ -27,7 +27,7 @@
             sysindexes
           
           WHERE
-            OBJECT_NAME(sysindexes.id) = '" . $this->baza->sql($table->get("name")) . "'
+            OBJECT_NAME(sysindexes.id) = '" . $this->baza->sql($table->getName()) . "'
         ");
         while($d_gi = $f_gi->fetch()){
           $columns = array();

@@ -1,19 +1,19 @@
 <?php
 
+namespace Baza;
+
 class Table{
-  public $baza;
-  public $data;
-  
-  public $columns = array();
-  public $columns_changed = true;
-  
-  public $indexes = array();
-  public $indexes_changed = true;
+  private $baza;
+  private $data;
   
   function __construct($baza, $data){
     $this->baza = $baza;
     $this->data = $data;
   }
+  
+  function getBaza(){ return $this->baza; }
+  function getData(){ return $this->data; }
+  function getName(){ return $this->data["name"]; }
   
   function rename($newname){
     $this->baza->tables()->renameTable($this, $newname);
@@ -35,17 +35,17 @@ class Table{
     }
     
     foreach($this->getIndexes() AS $index){
-      if ($index->get("name") == $name){
+      if ($index->getName() == $name){
         return $index;
       }
     }
     
-    throw new Exception("Index not found: \"" . $name . "\" on table \"" . $this->get("name") . "\".");
+    throw new Exception("Index not found: \"" . $name . "\" on table \"" . $this->getName() . "\".");
   }
   
   /** Count the rows for a table. */
   function countRows(){
-    $d_c = $this->baza->query("SELECT COUNT(*) AS count FROM " . $this->baza->conn->sep_table . $this->get("name") . $this->baza->conn->sep_table)->fetch();
+    $d_c = $this->baza->query("SELECT COUNT(*) AS count FROM " . $this->baza->conn->sep_table . $this->getName() . $this->baza->conn->sep_table)->fetch();
     return $d_c["count"];
   }
   
@@ -54,11 +54,14 @@ class Table{
   }
   
   function addIndex($cols, $name = null, $args = array()){
+    if (!is_array($cols))
+      throw new \Exception("Columns was not given as the first argument in an array: " . gettype($cols));
+    
     if (!$name){
-      $name = "table_" . $this->get("name") . "_cols";
+      $name = "table_" . $this->getName() . "_cols";
       
-      foreach($cols AS $col){
-        $name .= "_" . $col->get("name");
+      foreach($cols as $col){
+        $name .= "_" . $col->getName();
       }
     }
     
@@ -78,22 +81,24 @@ class Table{
   }
   
   function getColumn($name){
-    if ($this->columns[$name]){
-      return $this->columns[$name];
-    }
-    
     $cols = $this->getColumns();
-    foreach($cols AS $col){
-      if ($col->get("name") == $name){
-        return $col;
-      }
+    foreach($cols as $col){
+      if ($col->getName() == $name) return $col;
     }
     
-    throw new Exception("The column was not found (" . $name . ").");
+    throw new \Baza\Errors\ColumnNotFound($name);
+  }
+  
+  function columnExists($name){
+    return $this->baza->columns()->columnExists($this, $name);
   }
   
   function getIndexes(){
-    return $this->baza->indexes()->getIndexes($this);
+    $indexes = $this->baza->indexes()->getIndexes($this);
+    if (!is_array($indexes))
+      throw new \Exception("Result by driver was not an array.");
+    
+    return $indexes;
   }
   
   function drop(){
@@ -110,8 +115,9 @@ class Table{
     $this->baza->tables()->optimizeTable($this);
   }
   
-  function getName(){
-    return $this->data["name"];
+  function reload(){
+    $table = $this->baza->tables()->getTable($this->getName());
+    $this->data = $table->getData();
   }
 }
 

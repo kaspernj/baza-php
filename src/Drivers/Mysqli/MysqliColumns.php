@@ -2,7 +2,7 @@
 
 namespace Baza\Driver\Mysqli;
 
-class MysqliColumns implements \ColumnsInterface{
+class MysqliColumns implements \Baza\Interfaces\ColumnsInterface{
   private $driver;
   
   function __construct($baza){
@@ -12,12 +12,11 @@ class MysqliColumns implements \ColumnsInterface{
   
   function getColumnSQL($column, $args = null){
     if (!is_array($column)){
-      throw new exception("Column is not an array: " . gettype($column));
+      throw new \Exception("Column is not an array: " . gettype($column));
     }
     
-    if (!$column["name"]){
-      throw new Exception("Invalid name: " . $column["name"]);
-    }
+    if (!$column["name"])
+      throw new \Exception("Invalid name: " . $column["name"]);
     
     $sql = $this->driver->sep_col . $column['name'] . $this->driver->sep_col . " ";
     
@@ -57,28 +56,36 @@ class MysqliColumns implements \ColumnsInterface{
     }
     
     //Defines some extras (like primary key, null and default).
-    if ($column["primarykey"] == true && !$args["skip_primary"]){
+    if (array_key_exists("primarykey", $column) && $column["primarykey"] == true && !$args["skip_primary"]){
       $sql .= " PRIMARY KEY";
     }
     
-    if ($column["autoincr"] == true){
+    if (array_key_exists("autoincr", $column) && $column["autoincr"] == true){
       $sql .= " AUTO_INCREMENT";
     }
     
-    if ($column["notnull"] == true){
+    if (array_key_exists("notnull", $column) && $column["notnull"] == true){
       $sql .= " NOT NULL";
     }
     
-    if (strlen($column["default"]) > 0 && $column["autoincr"] != true){
+    if (array_key_exists("default", $column) && strlen($column["default"]) > 0 && $column["autoincr"] != true){
       $sql .= " DEFAULT " . $this->driver->sep_val . $this->baza->sql($column["default"]) . $this->driver->sep_val;
     }
     
-    return $sql . $ekstra;
+    return $sql;
   }
   
-  function getColumns(\Table $table){
+  function columnExists(\Baza\Table $table, $name){
+    $sql = "SHOW COLUMNS FROM " . $this->driver->sep_table . $table->getName() . $this->driver->sep_table;
+    $sql .= " WHERE Field = '" . $this->baza->sql($name) . "'";
+    
+    if ($this->baza->query($sql)->fetch()) return true;
+    return false;
+  }
+  
+  function getColumns(\Baza\Table $table){
     $columns = array();
-    $f_gc = $this->baza->query("SHOW FULL COLUMNS FROM " . $this->driver->sep_table . $table->get("name") . $this->driver->sep_table);
+    $f_gc = $this->baza->query("SHOW FULL COLUMNS FROM " . $this->driver->sep_table . $table->getName() . $this->driver->sep_table);
     while($d_gc = $f_gc->fetch()){
       $value = "";
       $unsigned = false;
@@ -110,13 +117,12 @@ class MysqliColumns implements \ColumnsInterface{
       if (preg_match("/([a-zA-Z]+)\((.+)\)(.*)$/", $d_gc["Type"], $match)){
         $type = strtolower($match[1]);
         $maxlength = $match[2];
-        
         if (strpos($match[3], "unsigned") !== false) $unsigned = true;
       }else{
         $type = strtolower($d_gc["Type"]);
       }
       
-      $columns[$d_gc["Field"]] = new \Column($table, array(
+      $columns[$d_gc["Field"]] = new \Baza\Column($this->baza, $table->getName(), array(
         "name" => $d_gc["Field"],
         "notnull" => $notnull,
         "type" => $type,
@@ -134,39 +140,38 @@ class MysqliColumns implements \ColumnsInterface{
     return $columns;
   }
   
-  function addColumns(Table $table, $columns){
+  function addColumns(\Baza\Table $table, $columns){
     if (!is_array($columns)){
       throw new exception("Second argument wasnt an array of columns.");
     }
     
     foreach($columns AS $column){
-      $this->baza->query("ALTER TABLE " . $this->driver->sep_table . $table->get("name") . $this->driver->sep_table . " ADD COLUMN " . $this->baza->columns()->getColumnSQL($column) . ";");
+      $this->baza->query("ALTER TABLE " . $this->driver->sep_table . $table->getName() . $this->driver->sep_table . " ADD COLUMN " . $this->baza->columns()->getColumnSQL($column) . ";");
       $table->columns_changed = true;
     }
   }
   
-  function removeColumn(Table $table, Column $column){
-    $sql = "ALTER TABLE " . $this->driver->sep_table . $table->get("name") . $this->driver->sep_table . " DROP COLUMN " . $this->driver->sep_col . $column->get("name") . $this->driver->sep_col;
+  function removeColumn(\Baza\Table $table, \Baza\Column $column){
+    $sql = "ALTER TABLE " . $this->driver->sep_table . $table->getName() . $this->driver->sep_table . " DROP COLUMN " . $this->driver->sep_col . $column->getName() . $this->driver->sep_col;
     $this->baza->query($sql);
-    unset($table->columns[$column->get("name")]);
+    unset($table->columns[$column->getName()]);
   }
   
-  function editColumn(Column $col, $newdata){
+  function editColumn(\Baza\Column $col, $newdata){
     $table = $col->getTable();
-    $sql = "ALTER TABLE " . $this->driver->sep_table . $table->get("name") . $this->driver->sep_table;
+    $sql = "ALTER TABLE " . $this->driver->sep_table . $table->getName() . $this->driver->sep_table;
     
-    if ($col->get("name") != $newdata["name"]){
-      $sql .= " CHANGE " . $this->driver->sep_col . $col->get("name") . $this->driver->sep_col . " " . $this->getColumnSQL($newdata, array("skip_primary" => true));
+    if ($col->getName() != $newdata["name"]){
+      $sql .= " CHANGE " . $this->driver->sep_col . $col->getName() . $this->driver->sep_col . " " . $this->getColumnSQL($newdata, array("skip_primary" => true));
     }else{
       $sql .= " MODIFY " . $this->getColumnSQL($newdata, array("skip_primary" => true));
     }
     
     $this->baza->query($sql);
     
-    if ($col->get("name") != $newdata["name"]){
-      unset($col->getTable()->columns[$col->get("name")]);
+    if ($col->getName() != $newdata["name"]){
+      unset($col->getTable()->columns[$col->getName()]);
       $col->getTable()->columns[$newdata["name"]] = $col;
     }
   }
 }
-

@@ -2,30 +2,38 @@
 
 namespace Baza\Driver\Sqlite3;
 
-class Sqlite3Tables implements \TablesInterface{
+class Sqlite3Tables implements \Baza\Interfaces\TablesInterface{
   public $baza;
-  public $tables = array();
-  private $tables_changed = true;
   
   function __construct(\Baza $baza){
     $this->baza = $baza;
+  }
+  
+  private function spawnTableFromData($data){
+    return new \Baza\Table($this->baza, array(
+      "name" => $data["name"],
+      "engine" => "sqlite3",
+      "collation" => "sqlite3"
+    ));
+  }
+  
+  function getTable($name){
+    $data = $this->baza->select("sqlite_master", array("type" => "table"), array("orderby" => "name", "limit" => 1))->fetch();
+    if (!$data)
+      throw new \Baza\Errors\TableNotFound($name);
+    
+    return $this->spawnTableFromData($data);
   }
   
   function getTables(){
     $return = array();
     $f_gt = $this->baza->select("sqlite_master", array("type" => "table"), array("orderby" => "name"));
     while($d_gt = $f_gt->fetch()){
-      if ($d_gt["name"] != "sqlite_sequence" and !array_key_exists($d_gt["name"], $this->tables)){
-        $this->tables[$d_gt["name"]] = new \Table($this->baza, array(
-            "name" => $d_gt["name"],
-            "engine" => "sqlite3",
-            "collation" => "sqlite3"
-          )
-        );
-      }
+      if ($d_gt["name"] == "sqlite_sequence") continue;
+      $return[$d_gt["name"]] = $this->spawnTableFromData($d_gt);
     }
     
-    return $this->tables;;
+    return $return;
   }
   
   function createTable($tablename, $columns, $args = null){
@@ -57,31 +65,25 @@ class Sqlite3Tables implements \TablesInterface{
     
     $sql .= ")";
     
-    if ($args["returnsql"]){
+    if ($args["returnsql"])
       return $sql;
-    }
     
     $this->baza->query($sql);
   }
   
-  function dropTable(Table $table){
-    unset($this->tables[$table->get("name")]);
-    $this->baza->query("DROP TABLE " . $this->baza->conn->sep_table . $table->get("name") . $this->baza->conn->sep_table);
+  function dropTable(\Baza\Table $table){
+    $this->baza->query("DROP TABLE " . $this->baza->conn->sep_table . $table->getName() . $this->baza->conn->sep_table);
   }
   
-  function renameTable(Table $table, $newtable){
-    $oldname = $table->get("name");
-    $this->baza->query("ALTER TABLE " . $this->baza->conn->sep_table . $table->get("name") . $this->baza->conn->sep_table . " RENAME TO " . $this->baza->conn->sep_table . $newtable . $this->baza->conn->sep_table);
-    $table->data["name"] = $newtable;
-    $this->tables[$newtable] = $table;
-    unset($this->tables[$oldname]);
+  function renameTable(\Baza\Table $table, $newtable){
+    $this->baza->query("ALTER TABLE " . $this->baza->conn->sep_table . $table->getName() . $this->baza->conn->sep_table . " RENAME TO " . $this->baza->conn->sep_table . $newtable . $this->baza->conn->sep_table);
   }
   
-  function truncateTable(Table $table){
-    $this->baza->query("DELETE FROM " . $this->baza->conn->sep_table . $table->get("name") . $this->baza->conn->sep_table);
+  function truncateTable(\Baza\Table $table){
+    $this->baza->query("DELETE FROM " . $this->baza->conn->sep_table . $table->getName() . $this->baza->conn->sep_table);
   }
   
-  function optimizeTable(Table $table){
+  function optimizeTable(\Baza\Table $table){
     $this->baza->query("VACUUM"); //vacuum the entire database.
   }
 }

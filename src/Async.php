@@ -1,5 +1,7 @@
 <?php
 
+namespace Baza;
+
 class Async{
   function __construct($args = array()){
     $this->args = $args;

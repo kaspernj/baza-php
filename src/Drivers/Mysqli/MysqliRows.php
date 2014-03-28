@@ -4,7 +4,7 @@ namespace Baza\Driver\Mysqli;
 
 Baza::requireLocal("Interfaces/RowsInterface.php");
 
-class MysqliRows implements \RowsInterface{
+class MysqliRows implements \Baza\Interfaces\RowsInterface{
   function __construct(\Baza $baza){
     $this->baza = $baza;
     $this->driver = $this->baza->conn;
@@ -14,7 +14,7 @@ class MysqliRows implements \RowsInterface{
     $data = $row->getAsArray();
     $table = $row->getTable();
     
-    return $this->getArrInsertSQL($table->get("name"), $data);
+    return $this->getArrInsertSQL($table->getName(), $data);
   }
   
   function getArrInsertSQL($tablename, $data){

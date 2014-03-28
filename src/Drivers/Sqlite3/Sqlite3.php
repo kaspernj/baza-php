@@ -27,13 +27,12 @@ class Sqlite3{
     unset($this->conn);
   }
   
-  function query($query){
-    $res = $this->conn->query($query);
-    if (!$res){
-      throw new exception("Could not execute query: " . $this->error());
-    }
+  function query($sql){
+    $res = @$this->conn->query($sql);
+    if (!$res)
+      throw new \Exception("Could not execute query: " . $this->error() . " for SQL: " . $sql);
     
-    return new \Result($this->baza, $this, $res);
+    return new \Baza\Result($this->baza, $this, $res);
   }
   
   function fetch($res){
@@ -52,7 +51,7 @@ class Sqlite3{
     return $this->conn->escapeString($string);
   }
   
-  function insert($table, $arr){
+  function insert($table, $arr, $args = array()){
     $sql = "INSERT INTO " . $this->sep_table . $table . $this->sep_table . " (";
     
     $first = true;
@@ -78,6 +77,9 @@ class Sqlite3{
       $sql .= $this->sep_val . $this->sql($value) . $this->sep_val;
     }
     $sql .= ")";
+
+    if (array_key_exists("return_sql", $args) && $args["return_sql"])
+      return $sql;
     
     $this->query($sql);
   }
@@ -173,5 +175,16 @@ class Sqlite3{
       return $sql;
     }
   }
+  
+  function beginTransaction(){
+    $this->baza->query("BEGIN TRANSACTION");
+  }
+  
+  function endTransaction(){
+    $this->baza->query("COMMIT");
+  }
+  
+  function rollBackTransaction(){
+    $this->baza->query("ROLLBACK");
+  }
 }
-

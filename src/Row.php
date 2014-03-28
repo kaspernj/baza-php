@@ -1,5 +1,7 @@
 <?php
 
+namespace Baza;
+
 /** This class represents a single row in a table. */
 class Row{
   public $dbconn;

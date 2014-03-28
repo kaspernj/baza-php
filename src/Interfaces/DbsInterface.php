@@ -1,5 +1,7 @@
 <?php
-  interface DbsInterface{
-    
-  }
 
+namespace Baza\Interfaces;
+
+interface DbsInterface{
+  
+}

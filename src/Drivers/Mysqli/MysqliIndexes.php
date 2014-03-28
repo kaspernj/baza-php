@@ -4,16 +4,16 @@ namespace Baza\Driver\Mysqli;
 
 \Baza::requireLocal("Interfaces/IndexesInterface.php");
 
-class MysqliIndexes implements \IndexesInterface{
+class MysqliIndexes implements \Baza\Interfaces\IndexesInterface{
   public $baza;
-  private $indexes = array();
   
   function __construct($baza){
     $this->baza = $baza;
+    $this->driver = $this->baza->getDriver();
   }
   
-  function getIndexSQL(Index $index){
-    $sql = "CREATE INDEX " . $this->baza->connob->sep_col . $index->get("name") . $this->baza->connob->sep_col . " ON " . $this->baza->connob->sep_table . $index->getTable()->get("name") . $this->baza->connob->sep_table . " (";
+  function getIndexSQL(\Baza\Index $index){
+    $sql = "CREATE INDEX " . $this->driver->sep_col . $index->getName() . $this->driver->sep_col . " ON " . $this->driver->sep_table . $index->getTable()->getName() . $this->driver->sep_table . " (";
     $first = true;
     foreach($index->getColumns() AS $column){
       if ($first == true){
@@ -22,28 +22,28 @@ class MysqliIndexes implements \IndexesInterface{
         $sql .= ", ";
       }
       
-      $sql .= $this->baza->connob->sep_col . $column->get("name") . $this->baza->connob->sep_col;
+      $sql .= $this->driver->sep_col . $column->getName() . $this->driver->sep_col;
     }
     $sql .= ");\n";
     
     return $sql;
   }
   
-  function addIndex(Table $table, $cols, $name = null, $args = null){
+  function addIndex(\Baza\Table $table, $cols, $name = null, $args = null){
     if (!$name){
       $name = "index";
       foreach($cols AS $col){
-        $name .= "_" . $col->get("name");
+        $name .= "_" . $col->getName();
       }
     }
     
     $sql = "CREATE";
     
-    if ($args["unique"]){
+    if (array_key_exists("unique", $args) && $args["unique"]){
       $sql .= " UNIQUE";
     }
     
-    $sql .= " INDEX " . $this->baza->connob->sep_table . $name . $this->baza->connob->sep_table . " ON " . $this->baza->connob->sep_table . $table->get("name") . $this->baza->connob->sep_table . " (";
+    $sql .= " INDEX " . $this->driver->sep_table . $name . $this->driver->sep_table . " ON " . $this->driver->sep_table . $table->getName() . $this->driver->sep_table . " (";
     
     $first = true;
     foreach($cols AS $column){
@@ -53,12 +53,18 @@ class MysqliIndexes implements \IndexesInterface{
         $sql .= ", ";
       }
       
-      $sql .= $this->baza->connob->sep_column . $column->getName() . $this->baza->connob->sep_column;
+      if (gettype($column) == "string"){
+        $name = $column;
+      }elseif(is_a($column, "\Baza\Column")){
+        $name = $column->getName();
+      }
+      
+      $sql .= $this->driver->sep_col . $name . $this->driver->sep_col;
     }
     
     $sql .= ")";
     
-    if ($args["returnsql"]){
+    if ($args && array_key_exists("return_sql", $args) && $args["return_sql"]){
       return $sql;
     }
     
@@ -66,22 +72,22 @@ class MysqliIndexes implements \IndexesInterface{
     $table->indexes_changed = true;
   }
   
-  function removeIndex(\Table $table, \Index $index){
-    $sql = "DROP INDEX " . $this->baza->conn->sep_index . $index->getName() . $this->baza->conn->sep_index . " ON " . $this->baza->conn->sep_table . $table->get("name") . $this->baza->conn->sep_table;
+  function removeIndex(\Baza\Table $table, \Baza\Index $index){
+    $sql = "DROP INDEX " . $this->driver->sep_index . $index->getName() . $this->driver->sep_index . " ON " . $this->driver->sep_table . $table->getName() . $this->driver->sep_table;
     $this->baza->query($sql);
-    unset($table->indexes[$index->get("name")]);
+    unset($table->indexes[$index->getName()]);
   }
   
-  function getIndexes(\Table $table){
+  function getIndexes(\Baza\Table $table){
     $indexes = array();
     
-    $f_gi = $this->baza->query("SHOW INDEX FROM " . $this->baza->conn->sep_table . $table->getName() . $this->baza->conn->sep_table);
+    $f_gi = $this->baza->query("SHOW INDEX FROM " . $this->driver->sep_table . $table->getName() . $this->driver->sep_table);
     while($d_gi = $f_gi->fetch()){
       if ($d_gi["Key_name"] == "PRIMARY") continue;
       
       $key = $d_gi["Key_name"];
       if (!array_key_exists($key, $indexes)){
-        if ($d_gi["Index_type"] == "UNIQUE" || $d_gi["Non_unique"] == 1){
+        if ($d_gi["Index_type"] == "UNIQUE"){
           $unique = true;
         }else{
           $unique = false;
@@ -96,9 +102,7 @@ class MysqliIndexes implements \IndexesInterface{
     //Making keys to numbers (as in SQLite).
     $return = array();
     foreach($indexes AS $name => $value){
-      if (!array_key_exists($name, $this->indexes)){
-        $return[$name] = new \Index($table, $value);
-      }
+      $return[$name] = new \Baza\Index($table, $value);
     }
     
     return $return;

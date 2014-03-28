@@ -2,7 +2,7 @@
 
 namespace Baza\Driver\Mysqli;
 
-class MysqliDbs implements \DbsInterface{
+class MysqliDbs implements \Baza\Interfaces\DbsInterface{
   private $baza;
   
   function __construct(\Baza $baza){

@@ -59,7 +59,7 @@ class Mysqli{
       throw new \Exception("Query error: " . $this->error() . "\n\nSQL: " . $query);
     }
     
-    return new \Result($this->baza, $this, $res);
+    return new \Baza\Result($this->baza, $this, $res);
   }
   
   function query_ubuf($query){
@@ -67,7 +67,7 @@ class Mysqli{
       throw new \Exception("Query error: " . $this->error() . "\n\nSQL: " . $query);
     }
     
-    return new \Result($this->baza, $this, $this->conn->use_result());
+    return new \Baza\Result($this->baza, $this, $this->conn->use_result());
   }
   
   function fetch($res){
@@ -98,16 +98,21 @@ class Mysqli{
     return $string;
   }
   
-  function trans_begin(){
+  function beginTransaction(){
     $this->conn->autocommit(false); //turn off autocommit.
   }
   
-  function trans_commit(){
+  function endTransaction(){
     $this->conn->commit();
     $this->conn->autocommit(true); //turn on autocommit.
   }
   
-  function insert($table, $arr, $args){
+  function rollBackTransaction(){
+    $this->conn->rollback();
+    $this->conn->autocommit(true);
+  }
+  
+  function insert($table, $arr, $args = array()){
     $sql = "INSERT INTO " . $this->sep_table . $table . $this->sep_table . " (";
     
     $first = true;
@@ -140,7 +145,7 @@ class Mysqli{
     $this->query($sql);
   }
   
-  function insert_multi($table, $rows){
+  function insertMulti($table, $rows, $args = array()){
     $sql = "INSERT INTO " . $this->sep_table . $table . $this->sep_table . " (";
     
     $first = true;
@@ -177,6 +182,9 @@ class Mysqli{
       }
       $sql .= ")";
     }
+    
+    if (array_key_exists("return_sql", $args) && $args["return_sql"])
+      return $sql;
     
     $this->query($sql);
   }

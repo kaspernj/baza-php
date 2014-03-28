@@ -1,6 +1,7 @@
 <?php
 
 Baza::requireLocal("Result.php");
+Baza::requireLocal("Errors.php");
 
 class Baza{
   static function requireLocal($path){
@@ -10,10 +11,8 @@ class Baza{
   public $conn, $rows;
   public $args = array(
     "col_id" => "id",
-    "autoconnect" => true,
-    "stats" => false
+    "autoconnect" => true
   );
-  public $stats = array();
   private $drivers = array();
   public $insert_autocommit, $insert_countcommit; //variables used by the transaction-autocommit-feature.
   
@@ -31,24 +30,13 @@ class Baza{
     return $this->args["type"];
   }
   
-  /** Returns a specific table by its name. */
-  function getTable($name){
-    if (array_key_exists($name, $this->tables()->tables)){
-      return $this->tables()->tables[$name];
-    }
-    
-    foreach($this->tables()->getTables() AS $table){
-      if ($table->get("name") == $name){
-        return $table;
-      }
-    }
-    
-    return false;
+  function getDriver(){
+    return $this->conn;
   }
   
   /** Connects to a database. */
   function connect(){
-    require_once("Drivers/" . $this->args["type"] . "/" . $this->args["type"] . ".php");
+    Baza::requireLocal("Drivers/" . $this->args["type"] . "/" . $this->args["type"] . ".php");
     $obname = "Baza\\Driver\\" . $this->args["type"];
     $this->conn = new $obname($this, $this->args);
     $this->conn->connect();
@@ -170,37 +158,11 @@ class Baza{
   
   /** Performs a query. */
   function query($sql){
-    if ($this->args["stats"]){
-      $this->stats["query_called"]++;
-      
-      if ($this->args["debug"]){
-        $bt = debug_backtrace();
-        
-        echo("Query " . $this->stats["query_called"] . "\n");
-        echo("File: " . $bt[0]["file"] . ":" . $bt[0]["line"] . "\n");
-        echo("File: " . $bt[1]["file"] . ":" . $bt[1]["line"] . "\n");
-        echo("SQL: " . $sql . "\n\n");
-      }
-    }
-    
     return $this->conn->query($sql);
   }
   
-  function query_ubuf($sql){
-    if ($this->args["stats"]){
-      $this->stats["query_called"]++;
-      
-      if ($this->args["debug"]){
-        $bt = debug_backtrace();
-        
-        echo("Query " . $this->stats["query_called"] . "\n");
-        echo("File: " . $bt[0]["file"] . ":" . $bt[0]["line"] . "\n");
-        echo("File: " . $bt[1]["file"] . ":" . $bt[1]["line"] . "\n");
-        echo("SQL: " . $sql . "\n\n");
-      }
-    }
-    
-    return $this->conn->query_ubuf($sql);
+  function queryUbuf($sql){
+    return $this->conn->queryUbuf($sql);
   }
   
   /** Fetches a result. */
@@ -267,7 +229,7 @@ class Baza{
   }
   
   /** Selects a single row and returns it. */
-  function selectsingle($table, $where, $args = array()){
+  function single($table, $where, $args = array()){
     $args["limit"] = "1";
     return $this->select($table, $where, $args)->fetch();
   }
@@ -282,12 +244,12 @@ class Baza{
     return $this->conn->insert($table, $arr, $args);
   }
   
-  function insert_multi($table, $rows){
-    if (method_exists($this->conn, "insert_multi")){
-      $this->conn->insert_multi($table, $rows);
+  function insertMulti($table, $rows){
+    if (method_exists($this->conn, "insertMulti")){
+      $this->conn->insertMulti($table, $rows);
     }else{
       foreach($rows AS $row){
-        $this->conn->insert($table, $row);
+        $this->conn->insert($table, $row, array());
       }
     }
   }
@@ -319,8 +281,25 @@ class Baza{
     return $this->conn->makeWhere($where);
   }
   
+  function transaction($func){
+    if (!method_exists($this->conn, "beginTransaction"))
+      throw new \Exception("Driver does not support transactions.");
+    
+    $this->conn->beginTransaction();
+    $this->doingTransaction = true;
+    
+    try{
+      $func();
+    }catch(exception $e){
+      $this->conn->rollBackTransaction();
+      throw $e;
+    }
+    
+    $this->conn->endTransaction();
+  }
+  
   function trans_begin(){
-    if (method_exists($this->conn, "trans_begin")){
+    if (method_exists($this->conn, "endTransaction")){
       $this->conn->trans_begin();
     }
   }

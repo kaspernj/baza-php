@@ -2,7 +2,7 @@
 
 namespace Baza\Driver\Sqlite3;
 
-class Sqlite3Columns implements \ColumnsInterface{
+class Sqlite3Columns implements \Baza\Interfaces\ColumnsInterface{
   private $baza;
   
   function __construct(\Baza $baza){
@@ -89,70 +89,73 @@ class Sqlite3Columns implements \ColumnsInterface{
     return $sql;
   }
   
-  function getColumns(\Table $table){
-    if ($table->columns_changed){
-      $f_gc = $this->baza->query("PRAGMA table_info(" . $table->get("name") . ")");
-      while($d_gc = $f_gc->fetch()){
-        if (!array_key_exists($d_gc["name"], $table->columns)){
-          if (!$d_gc['notnull']){
-            $notnull = false;
-          }else{
-            $notnull = true;
-          }
-          
-          if ($d_gc['pk'] == "1"){
-            $primarykey = true;
-          }else{
-            $primarykey = false;
-          }
-          
-          $maxlength = "";
-          if (preg_match("/([a-zA-Z]+)\(([0-9]+)\)/", $d_gc["type"], $match)){
-            $type = strtolower($match[1]);
-            $maxlength = $match[2];
-          }else{
-            $type = strtolower($d_gc["type"]);
-          }
-          
-          if ($type == "integer"){
-            $type = "int";
-          }
-          
-          $default = substr($d_gc["dflt_value"], 1, -1); //strip slashes.
-          
-          $table->columns[$d_gc["name"]] = new \Column($table, array(
-            "name" => $d_gc["name"],
-            "notnull" => $notnull,
-            "type" => $type,
-            "maxlength" => $maxlength,
-            "default" => $default,
-            "primarykey" => $primarykey,
-            "input_type" => "sqlite3",
-            "autoincr" => ""
-          ));
-        }
-      }
-      
-      $table->columns_changed = false;
+  function columnExists(\Baza\Table $table, $name){
+    foreach($this->getColumns($table) as $column){
+      if ($column->getName() == $name) return true;
     }
     
-    return $table->columns;
+    return false;
   }
   
-  function addColumns(Table $table, $columns){
+  function getColumns(\Baza\Table $table){
+    $columns = array();
+    $f_gc = $this->baza->query("PRAGMA table_info(" . $table->getName() . ")");
+    while($d_gc = $f_gc->fetch()){
+      if (!$d_gc['notnull']){
+        $notnull = false;
+      }else{
+        $notnull = true;
+      }
+      
+      if ($d_gc['pk'] == "1"){
+        $primarykey = true;
+      }else{
+        $primarykey = false;
+      }
+      
+      $maxlength = "";
+      if (preg_match("/([a-zA-Z]+)\(([0-9]+)\)/", $d_gc["type"], $match)){
+        $type = strtolower($match[1]);
+        $maxlength = $match[2];
+      }else{
+        $type = strtolower($d_gc["type"]);
+      }
+      
+      if ($type == "integer"){
+        $type = "int";
+      }
+      
+      $default = substr($d_gc["dflt_value"], 1, -1); //strip slashes.
+      
+      $columns[$d_gc["name"]] = new \Baza\Column($this->baza, $table->getName(), array(
+        "name" => $d_gc["name"],
+        "notnull" => $notnull,
+        "type" => $type,
+        "maxlength" => $maxlength,
+        "default" => $default,
+        "primarykey" => $primarykey,
+        "input_type" => "sqlite3",
+        "autoincr" => ""
+      ));
+    }
+    
+    return $columns;
+  }
+  
+  function addColumns(\Baza\Table $table, $columns){
     foreach($columns AS $column){
       if ($column["notnull"] == true){
         $column["default_set"] = true;
       }
       
-      $sql = "ALTER TABLE " . $this->baza->conn->sep_table . $table->get("name") . $this->baza->conn->sep_table . " ADD COLUMN " . $this->baza->columns()->getColumnSQL($column) . ";";
+      $sql = "ALTER TABLE " . $this->baza->conn->sep_table . $table->getName() . $this->baza->conn->sep_table . " ADD COLUMN " . $this->baza->columns()->getColumnSQL($column) . ";";
       $this->baza->query($sql);
       $table->columns_changed = true;
     }
   }
   
-  function removeColumn(Table $table, Column $column_remove){
-    $tablename = $table->get("name");
+  function removeColumn(\Baza\Table $table, \Baza\Column $column_remove){
+    $tablename = $table->getName();
     
     //Again... SQLite has no "ALTER TABLE".
     $columns = $table->getColumns();
@@ -163,29 +166,27 @@ class Sqlite3Columns implements \ColumnsInterface{
     
     //Removing the specific column from the array.
     $cols = array();
-    foreach($columns AS $key => $column){
-      if ($column->get("name") != $column_remove->get("name")){
-        $cols[] = $column->data;
-      }
+    foreach($columns as $key => $column){
+      if ($column->getName() == $column_remove->getName()) continue;
+      $cols[] = $column->getData();
     }
     
     $this->baza->tables()->createTable($tablename, $cols);
-    $newtable = $this->baza->getTable($tablename);
+    $newtable = $this->baza->tables()->getTable($tablename);
     
     
     $sql_insert = "INSERT INTO " . $this->baza->conn->sep_table . $tablename . $this->baza->conn->sep_table . " SELECT ";
     $first = true;
-    foreach($columns AS $column){
-      if ($column->get("name") != $column_remove->get("name")){
-        if ($first == true){
-          $first = false;
-        }else{
-          $sql_insert .= ", ";
-        }
-        
-        $sql_insert .= $this->baza->conn->sep_col . $column->get("name") . $this->baza->conn->sep_col;
-        $newcolumns[] = $value;
+    foreach($columns as $column){
+      if ($column->getName() == $column_remove->getName()) continue;
+      
+      if ($first == true){
+        $first = false;
+      }else{
+        $sql_insert .= ", ";
       }
+      
+      $sql_insert .= $this->baza->conn->sep_col . $column->getName() . $this->baza->conn->sep_col;
     }
     
     $sql_insert .= " FROM " . $this->baza->conn->sep_table . $tempname . $this->baza->conn->sep_table;
@@ -195,36 +196,39 @@ class Sqlite3Columns implements \ColumnsInterface{
     //Creating indexes again from the array, that we saved at the beginning. In short terms this will rename the columns which have indexes to the new names, so that they wont be removed.
     foreach($indexes AS $index){
       $cols = array();
-      foreach($index->getColumns() AS $column){
-        $cols[] = $newtable->getColumn($column->get("name"));
+      foreach($index->getColumnNames() as $column_name){
+        if ($column_name == $column_remove->getName()) continue;
+        $cols[] = $newtable->getColumn($column_name);
       }
+      
+      if (count($cols) == 0) continue;
+      $newtable->addIndex($cols, $index->getName());
     }
     
     
     //Drop the temp-table.
     $table->drop();
-    unset($this->columns[$column_remove->get("name")]);
   }
   
-  function editColumn(Column $col, $newdata){
+  function editColumn(\Baza\Column $col, $newdata){
     $table = $col->getTable();
-    $table_name = $table->get("name");
-    $tempname = $table->get("name") . "_temp";
+    $table_name = $table->getName();
+    $tempname = $table->getName() . "_temp";
     $indexes = $this->baza->indexes()->getIndexes($table);
     $table->rename($tempname);
     
     $newcolumns = array();
-    foreach($table->getColumns() AS $column){
-      if ($column->get("name") == $col->get("name")){
+    foreach($table->getColumns() as $column){
+      if ($column->getName() == $col->getName()){
         $newcolumns[] = $newdata;
       }else{
-        $newcolumns[] = $column->data;
+        $newcolumns[] = $column->getData();
       }
     }
     
     //Makinig SQL for creating the new table with updated columns and executes it.
     $this->baza->tables()->createTable($table_name, $newcolumns);
-    $table_new = $this->baza->getTable($table_name);
+    $table_new = $this->baza->tables()->getTable($table_name);
     
     //Making SQL for inserting into it from the temp-table.
     $sql_insert = "INSERT INTO '" . $table_name . "' (";
@@ -241,7 +245,7 @@ class Sqlite3Columns implements \ColumnsInterface{
       }
       
       $sql_insert .= $newcolumns[$count]["name"];
-      $sql_select .= $column->get("name") . " AS " . $column->get("name");
+      $sql_select .= $column->getName() . " AS " . $column->getName();
       
       $count++;
     }
@@ -257,11 +261,11 @@ class Sqlite3Columns implements \ColumnsInterface{
     $newindexes = array();
     if ($indexes){
       foreach($indexes AS $index_key => $index){
-        foreach($index->getColumns() AS $column_key => $column){
-          if ($column->get("name") == $col->get("name")){
+        foreach($index->getColumnNames() AS $column_name){
+          if ($column_name == $col->getName()){
             $newindexes[$index_key][] = $table_new->getColumn($newdata["name"]);
           }else{
-            $newindexes[$index_key][] = $table_new->getColumn($column->get("name"));
+            $newindexes[$index_key][] = $table_new->getColumn($column_name);
           }
         }
       }
@@ -269,12 +273,6 @@ class Sqlite3Columns implements \ColumnsInterface{
     
     foreach($newindexes AS $key => $cols){
       $table_new->addIndex($cols);
-    }
-    
-    $table->data = $table_new->data; //if not it will bug up, if some other code has cached this object.
-    if ($col->get("name") != $newdata["name"]){
-      unset($this->columns[$col->get("name")]);
-      $this->columns[$newdata["name"]] = $col;
     }
   }
 }

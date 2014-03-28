@@ -65,7 +65,7 @@
     
     function getColumns(Table $table){
       if ($table->columns_changed){
-        $f_gc = $this->baza->query("SELECT * FROM INFORMATION_SCHEMA.Columns WHERE TABLE_NAME = '" . $this->baza->sql($table->get("name")) . "' ORDER BY ORDINAL_POSITION");
+        $f_gc = $this->baza->query("SELECT * FROM INFORMATION_SCHEMA.Columns WHERE TABLE_NAME = '" . $this->baza->sql($table->getName()) . "' ORDER BY ORDINAL_POSITION");
         while($d_gc = $f_gc->fetch()){
           if (!$table->columns[$d_gc["COLUMN_NAME"]]){
             if ($d_gc["IS_NULLABLE"] == "NO"){
@@ -115,7 +115,7 @@
     
     function removeColumn(Table $table, Column $col){
       throw new Exception("Not supported.");
-      unset($table->columns[$column->get("name")]);
+      unset($table->columns[$column->getName()]);
     }
     
     function editColumn(Column $col, $newdata){

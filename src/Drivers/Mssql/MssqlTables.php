@@ -12,7 +12,7 @@
       if ($this->tables_changed){
         $f_gt = $this->baza->query("SELECT * FROM INFORMATION_SCHEMA.Tables WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME");
         while($d_gt = $f_gt->fetch()){
-          $this->tables[$d_gt["TABLE_NAME"]] = new Table($this->baza, array(
+          $this->tables[$d_gt["TABLE_NAME"]] = new \Baza\Table($this->baza, array(
               "name" => $d_gt["TABLE_NAME"]
             )
           );
